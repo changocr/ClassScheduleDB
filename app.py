@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.colors as mcolors
@@ -95,7 +94,7 @@ user_name = st.session_state.user_name
 # 2. 区分管理员/学生界面
 if user_name.lower() == "admin":
     # ==================================
-    # 管理员界面 (恢复完整逻辑)
+    # 管理员界面
     # ==================================
     st.title("🔧 管理员总览控制台")
     df_colors, df_schedule = load_full_data()
@@ -108,7 +107,6 @@ if user_name.lower() == "admin":
         all_students = df_schedule["StudentName"].unique().tolist()
     student_color_map = {s: COLOR_POOL[i % len(COLOR_POOL)] for i, s in enumerate(all_students)}
 
-    # 视图1：当周有效课表汇总
     st.subheader(f"📅 第 {target_week} 周 有效课表汇总")
     header_cols = st.columns([1] + [1]*len(WEEKDAYS))
     header_cols[0].markdown("**时间**")
@@ -143,7 +141,6 @@ if user_name.lower() == "admin":
 
     st.divider()
 
-    # 视图2：当周集体空闲表
     st.subheader(f"🕳️ 第 {target_week} 周 集体空闲时间表")
     st.caption("🟢 绿色 = 所有人都空闲；🔴 红色 = 至少1人有课")
     free_matrix = {p: {d: True for d in WEEKDAYS} for p in PERIODS}
@@ -173,7 +170,7 @@ if user_name.lower() == "admin":
         row_cols[0].write(period)
         for d, day in enumerate(WEEKDAYS):
             is_free = free_matrix[period][day]
-            bg_color = "#dcfce7" if is_free else "#fee2e2"  # 使用更柔和的现代绿/红色系
+            bg_color = "#dcfce7" if is_free else "#fee2e2"
             text_color = "#166534" if is_free else "#991b1b"
             border_color = "#bbf7d0" if is_free else "#fecaca"
             label = "空闲" if is_free else "有课"
@@ -184,7 +181,6 @@ if user_name.lower() == "admin":
 
     st.divider()
 
-    # 一键清空数据库
     st.subheader("⚠️ 危险操作：清空全部数据库")
     st.caption("此操作会删除所有学生的周数配置和课表数据，无法恢复，请谨慎操作！")
     input_pwd = st.text_input("请输入操作密码", type="password")
@@ -208,34 +204,23 @@ if user_name.lower() == "admin":
 
 else:
     # ==================================
-    # 学生界面 (现代化浅色排版 & 宽度强制突破)
+    # 学生界面 (包含移动端方案一响应式适配)
     # ==================================
     
     st.markdown("""
     <style>
-    /* 模块间距定义 */
+    /* === 桌面端基础样式 === */
     .module-spacer { height: 1.5rem; }
     .section-title { font-size: 1.1em; font-weight: 600; color: #333333; margin-bottom: 1rem; border-left: 4px solid #3b82f6; padding-left: 10px; }
     
-    /* === 核心：强制破除 Streamlit 列与按钮的宽度限制 === */
-    [data-testid="column"] { 
-        min-width: 0 !important; 
-        padding: 0 !important; 
-    }
-    [data-testid="column"] > div { 
-        width: 100% !important; 
-    }
-    div[data-testid="stButton"] {
-        width: 100% !important;
-        display: flex !important;
-    }
+    [data-testid="column"] { min-width: 0 !important; padding: 0 !important; }
+    [data-testid="column"] > div { width: 100% !important; }
+    div[data-testid="stButton"] { width: 100% !important; display: flex !important; }
     
-    /* 网格容器间距清零 */
     [data-testid="stVerticalBlock"] { gap: 0 !important; }
     [data-testid="stHorizontalBlock"] { gap: 0 !important; }
     [data-testid="element-container"] { margin-bottom: 0 !important; width: 100% !important; }
     
-    /* 基础按钮：SaaS 现代网格风格，宽度 100% */
     .stButton > button {
         width: 100% !important;
         flex: 1 1 auto !important; 
@@ -252,14 +237,9 @@ else:
         transition: all 0.15s ease-in-out;
     }
     
-    .stButton > button:hover {
-        filter: brightness(0.95);
-        cursor: pointer;
-    }
-
+    .stButton > button:hover { filter: brightness(0.95); cursor: pointer; }
     .stMarkdown p { margin: 0 !important; padding: 0 !important; }
     
-    /* 表头与时间轴样式 */
     .schedule-header, .schedule-time {
         height: 48px !important;
         line-height: 48px !important;
@@ -277,6 +257,46 @@ else:
         font-weight: 500 !important;
         padding-right: 12px !important;
         color: #777777;
+    }
+
+    /* === 移动端响应式核心 (方案一) === */
+    @media (max-width: 768px) {
+        /* 1. 阻止 Streamlit 原生列堆叠，强制维持网格结构 */
+        [data-testid="stHorizontalBlock"]:has(.schedule-time),
+        [data-testid="stHorizontalBlock"]:has(.schedule-header) {
+            flex-wrap: nowrap !important;
+            min-width: 800px !important; /* 强制产生溢出以触发滚动 */
+        }
+        
+        /* 2. 识别课表的父级容器，并开启原生横向滚动 */
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stHorizontalBlock"] .schedule-time) {
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch; /* 开启 iOS 惯性滚动 */
+            padding-bottom: 8px; /* 预留滚动条空间 */
+            /* 注入右侧阴影提示用户可滑动 */
+            box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.1);
+        }
+
+        /* 3. 冻结时间轴列 (首列) */
+        [data-testid="stHorizontalBlock"]:has(.schedule-time) > [data-testid="column"]:nth-child(1),
+        [data-testid="stHorizontalBlock"]:has(.schedule-header) > [data-testid="column"]:nth-child(1) {
+            position: sticky !important;
+            left: 0 !important;
+            z-index: 99 !important;
+            background-color: #ffffff !important; /* 必须使用实色防止滑动穿透 */
+            box-shadow: 3px 0px 5px -2px rgba(0,0,0,0.12) !important; /* 右侧悬浮阴影，形成视觉分割 */
+        }
+
+        /* 强制修复冻结状态下单元格的底色 */
+        .schedule-time {
+            background-color: #ffffff !important;
+        }
+        
+        /* 优化移动端周数配置区的按钮排版 */
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] > div > div > [data-testid="stButton"] {
+            margin-bottom: 8px !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -387,7 +407,7 @@ else:
     st.markdown('<div class="section-title">排课视图</div>', unsafe_allow_html=True)
     
     header_cols = st.columns([1.5] + [1]*len(WEEKDAYS))
-    header_cols[0].markdown(f'<div class="schedule-time">时间段</div>', unsafe_allow_html=True)
+    header_cols[0].markdown(f'<div class="schedule-time schedule-header">时间段</div>', unsafe_allow_html=True)
     for d, day in enumerate(WEEKDAYS):
         style_ext = "border-right: 1px solid #eaebec !important;" if d == len(WEEKDAYS)-1 else ""
         header_cols[d+1].markdown(f'<div class="schedule-header" style="{style_ext}">{day}</div>', unsafe_allow_html=True)
