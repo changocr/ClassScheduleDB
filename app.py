@@ -5,7 +5,6 @@ from pyairtable import Table
 import random
 
 # ================= 配置与常量 =================
-# 课表时间
 PERIODS = [
     "08:00~08:45", "08:55~09:40", "10:00~10:45", "10:55~11:40",
     "12:40~13:25", "13:35~14:20", "14:30~15:15", "15:25~16:10",
@@ -28,7 +27,7 @@ table_schedule = Table(AIRTABLE_API_KEY, AIRTABLE_BASE_ID, "Schedule")
 # 颜色池
 COLOR_POOL = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.CSS4_COLORS.values())
 
-# ================= 辅助函数 (修复版) =================
+# ================= 辅助函数 =================
 
 def get_random_color(existing_hexes):
     random.shuffle(COLOR_POOL)
@@ -38,19 +37,15 @@ def get_random_color(existing_hexes):
     return f"#{random.randint(0, 0xFFFFFF):06x}"
 
 def load_data():
-    """从 Airtable 加载数据，并处理空表情况"""
     colors_records = table_colors.all()
     schedule_records = table_schedule.all()
     
-    # 处理 Colors 表
     if colors_records:
         df_colors = pd.DataFrame([r["fields"] for r in colors_records])
         df_colors["RecordID"] = [r["id"] for r in colors_records]
     else:
-        # 空表时创建空结构
         df_colors = pd.DataFrame(columns=["StudentName", "StartWeek", "EndWeek", "ColorHex", "RecordID"])
     
-    # 处理 Schedule 表
     if schedule_records:
         df_schedule = pd.DataFrame([r["fields"] for r in schedule_records])
     else:
@@ -83,18 +78,15 @@ if user_name.lower() == "admin":
     
     df_colors, df_schedule = load_data()
     
-    # 合并数据 (增加判空)
     df_merged = pd.DataFrame()
     if not df_schedule.empty and not df_colors.empty:
         df_merged = pd.merge(df_schedule, df_colors, left_on="ColorRecordID", right_on="RecordID", how="left")
     elif not df_schedule.empty:
         df_merged = df_schedule.copy()
 
-    # 侧边栏：选择周数
     st.sidebar.header("筛选控制")
     target_week = st.sidebar.number_input("选择要查看的周数", min_value=1, max_value=20, value=1)
 
-    # 给每个学生分配颜色
     all_students = df_merged["StudentName"].unique().tolist() if "StudentName" in df_merged.columns else []
     student_color_map = {s: COLOR_POOL[i % len(COLOR_POOL)] for i, s in enumerate(all_students)}
 
@@ -108,7 +100,6 @@ if user_name.lower() == "admin":
             (df_merged["EndWeek"] >= target_week)
         ]
 
-    # 渲染课表
     header_cols = st.columns([1] + [1]*len(WEEKDAYS))
     header_cols[0].markdown("**时间**")
     for d, day in enumerate(WEEKDAYS):
@@ -143,7 +134,6 @@ if user_name.lower() == "admin":
     st.subheader(f"🕳️ 第 {target_week} 周 集体空闲表")
     st.caption("🟢 绿色 = 所有人都有空；🔴 红色 = 至少有1人有课")
 
-    # 构建空闲矩阵
     free_matrix = {p: {d: True for d in WEEKDAYS} for p in PERIODS}
 
     if not df_filtered.empty:
@@ -153,7 +143,6 @@ if user_name.lower() == "admin":
             if p in free_matrix and d in free_matrix[p]:
                 free_matrix[p][d] = False
 
-    # 渲染空闲表
     header_cols2 = st.columns([1] + [1]*len(WEEKDAYS))
     header_cols2[0].markdown("**时间**")
     for d, day in enumerate(WEEKDAYS):
@@ -189,7 +178,6 @@ else:
     # ---------------- 1. 颜色管理区 ----------------
     st.subheader("🎨 我的颜色与周数")
     
-    # 筛选出当前学生的颜色 (修复版)
     my_colors = pd.DataFrame()
     if not df_colors.empty and "StudentName" in df_colors.columns:
         my_colors = df_colors[df_colors["StudentName"] == user_name].copy()
@@ -206,10 +194,10 @@ else:
             st.success("已为您创建默认黑色 (1-17周)，页面即将刷新...")
             st.rerun()
         except Exception as e:
-            st.error(f"初始化失败，请检查 Airtable 字段名是否正确 (需要 StudentName, StartWeek, EndWeek, ColorHex): {e}")
+            st.error(f"初始化失败，请检查 Airtable 字段名: {e}")
             st.stop()
 
-    # 重新加载以确保拿到新数据
+    # 重新加载
     df_colors, df_schedule = load_data()
     my_colors = df_colors[df_colors["StudentName"] == user_name].copy()
 
@@ -251,7 +239,7 @@ else:
 
     st.divider()
 
-    # ---------------- 2. 课表点击区 ----------------
+    # ---------------- 2. 课表点击区 (修复版：移除 popover) ----------------
     st.subheader("📅 点击课表占位")
     
     # 构建我的颜色选项字典
@@ -260,6 +248,10 @@ else:
         for _, r in my_colors.iterrows():
             label = f"{int(r['StartWeek'])}-{int(r['EndWeek'])}周"
             my_color_options[r['RecordID']] = (r['ColorHex'], label)
+
+    # 初始化编辑状态
+    if "editing_cell" not in st.session_state:
+        st.session_state.editing_cell = None
 
     # 渲染课表网格
     header_cols = st.columns([1.2] + [1]*len(WEEKDAYS))
@@ -292,39 +284,59 @@ else:
                         current_label = my_color_options[current_color_id][1]
 
             with row_cols[d+1]:
-                if st.button(f"{current_label}", key=cell_key, help=f"{day} {period}"):
-                    st.session_state[f"edit_{cell_key}"] = True
+                # 自定义按钮样式
+                btn_style = f"""
+                <style>
+                div.stButton > button[key="{cell_key}"] {{
+                    background-color: {current_hex};
+                    color: {'white' if current_hex != '#f0f2f6' else '#333'};
+                    height: 50px;
+                    white-space: pre-wrap;
+                }}
+                </style>
+                """
+                st.markdown(btn_style, unsafe_allow_html=True)
 
-                if st.session_state.get(f"edit_{cell_key}", False):
-                    with st.popover("编辑课程", open=True):
-                        select_options = ["删除此时间段"]
-                        option_map = {"删除此时间段": None}
-                        
-                        for rec_id, (hex_val, label) in my_color_options.items():
-                            select_options.append(label)
-                            option_map[label] = rec_id
+                if st.button(f"{current_label}", key=cell_key):
+                    st.session_state.editing_cell = (day, period)
 
-                        choice = st.radio("选择", select_options)
+            # 如果是当前正在编辑的格子，在下方显示编辑器
+            if st.session_state.editing_cell == (day, period):
+                st.info(f"正在编辑: {day} {period}")
+                
+                select_options = ["删除此时间段"]
+                option_map = {"删除此时间段": None}
+                
+                for rec_id, (hex_val, label) in my_color_options.items():
+                    select_options.append(label)
+                    option_map[label] = rec_id
+
+                choice = st.radio("选择操作", select_options, key=f"radio_{cell_key}")
+                
+                if st.button("确认保存", key=f"save_{cell_key}"):
+                    # 删除旧记录
+                    formula = f"AND({{StudentName}}='{user_name}', {{Weekday}}='{day}', {{Period}}='{period}')"
+                    try:
+                        old_records = table_schedule.all(formula=formula)
+                        for r in old_records:
+                            table_schedule.delete(r['id'])
                         
-                        if st.button("确认"):
-                            # 删除旧记录
-                            formula = f"AND({{StudentName}}='{user_name}', {{Weekday}}='{day}', {{Period}}='{period}')"
-                            try:
-                                old_records = table_schedule.all(formula=formula)
-                                for r in old_records:
-                                    table_schedule.delete(r['id'])
-                                
-                                # 插入新记录
-                                chosen_id = option_map[choice]
-                                if chosen_id is not None:
-                                    table_schedule.create({
-                                        "StudentName": user_name,
-                                        "Weekday": day,
-                                        "Period": period,
-                                        "ColorRecordID": chosen_id
-                                    })
-                            except Exception as e:
-                                st.error(f"保存出错: {e}")
-                            
-                            st.session_state[f"edit_{cell_key}"] = False
-                            st.rerun()
+                        # 插入新记录
+                        chosen_id = option_map[choice]
+                        if chosen_id is not None:
+                            table_schedule.create({
+                                "StudentName": user_name,
+                                "Weekday": day,
+                                "Period": period,
+                                "ColorRecordID": chosen_id
+                            })
+                        st.success("保存成功！")
+                    except Exception as e:
+                        st.error(f"保存出错: {e}")
+                    
+                    st.session_state.editing_cell = None
+                    st.rerun()
+                
+                if st.button("取消", key=f"cancel_{cell_key}"):
+                    st.session_state.editing_cell = None
+                    st.rerun()
