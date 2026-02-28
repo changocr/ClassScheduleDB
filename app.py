@@ -437,58 +437,111 @@ else:
     # ---------------- 模块二：核心网格 ----------------
     st.markdown('<div class="section-title">排课视图</div>', unsafe_allow_html=True)
     
-    header_cols = st.columns([1.5] + [1]*len(WEEKDAYS))
-    header_cols[0].markdown(f'<div class="schedule-time schedule-header">时间段</div>', unsafe_allow_html=True)
-    for d, day in enumerate(WEEKDAYS):
-        style_ext = "border-right: 1px solid #eaebec !important;" if d == len(WEEKDAYS)-1 else ""
-        header_cols[d+1].markdown(f'<div class="schedule-header" style="{style_ext}">{day}</div>', unsafe_allow_html=True)
+    view_mode = st.radio("视图模式", ["📱 列表模式 (移动端推荐)", "💻 网格模式 (桌面端)"], horizontal=True, label_visibility="collapsed")
+    st.markdown('<div class="module-spacer" style="height: 0.5rem;"></div>', unsafe_allow_html=True)
 
-    total_periods = len(PERIODS)
-    for row_idx, period in enumerate(PERIODS):
-        is_last_row = row_idx == total_periods - 1
-        row_cols = st.columns([1.5] + [1]*len(WEEKDAYS))
-        
-        time_style = "border-bottom: 1px solid #eaebec !important;" if is_last_row else ""
-        row_cols[0].markdown(f'<div class="schedule-time" style="{time_style}">{period}</div>', unsafe_allow_html=True)
-        
+    if "列表模式" in view_mode:
+        tabs = st.tabs(WEEKDAYS)
         for d, day in enumerate(WEEKDAYS):
-            cell_key = f"{day}-{period}"
-            button_key = f"btn_{cell_key}"
-            is_last_col = d == len(WEEKDAYS)-1
-            
-            cell_data = user_schedule.get(cell_key, None)
-            cell_cid, cell_hex, cell_label = (None, "transparent", "") if cell_data is None else cell_data
+            with tabs[d]:
+                for row_idx, period in enumerate(PERIODS):
+                    cell_key = f"{day}-{period}"
+                    button_key = f"btn_list_{cell_key}"
+                    
+                    cell_data = user_schedule.get(cell_key, None)
+                    cell_cid, cell_hex, cell_label = (None, "transparent", "") if cell_data is None else cell_data
 
-            btn_border_right = "border-right: 1px solid #eaebec !important;" if is_last_col else ""
-            btn_border_bottom = "border-bottom: 1px solid #eaebec !important;" if is_last_row else ""
-            
-            if cell_hex != "transparent":
-                h_c = cell_hex.lstrip('#')
-                r, g, b = tuple(int(h_c[i:i+2], 16) for i in (0, 2, 4))
-                cell_text_color = "white" if (r*0.299 + g*0.587 + b*0.114) < 186 else "#333333"
-            else:
-                cell_text_color = "transparent"
-
-            st.markdown(f"""
-            <style>
-            #{button_key} > button {{
-                background-color: {cell_hex} !important;
-                color: {cell_text_color} !important;
-                {btn_border_right}
-                {btn_border_bottom}
-            }}
-            </style>
-            """, unsafe_allow_html=True)
-
-            with row_cols[d+1]:
-                if st.button(cell_label if cell_label else "空", key=button_key, use_container_width=True):
-                    if cell_cid == current_cid:
-                        if cell_key in user_schedule:
-                            del user_schedule[cell_key]
+                    if cell_hex != "transparent":
+                        h_c = cell_hex.lstrip('#')
+                        r, g, b = tuple(int(h_c[i:i+2], 16) for i in (0, 2, 4))
+                        cell_text_color = "white" if (r*0.299 + g*0.587 + b*0.114) < 186 else "#333333"
+                        border_color = "transparent"
                     else:
-                        user_schedule[cell_key] = (current_cid, current_hex, current_label)
-                    st.session_state.user_schedule = user_schedule
-                    st.rerun()
+                        cell_text_color = "#666666"
+                        border_color = "#e5e7eb"
+
+                    st.markdown(f"""
+                    <style>
+                    #{button_key} > button {{
+                        background-color: {cell_hex if cell_hex != 'transparent' else '#f9fafb'} !important;
+                        color: {cell_text_color} !important;
+                        border: 1px solid {border_color} !important;
+                        border-radius: 8px !important;
+                        margin-bottom: 8px !important;
+                        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+                        justify-content: flex-start !important;
+                        padding-left: 1rem !important;
+                    }}
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    c1, c2 = st.columns([1, 3])
+                    with c1:
+                        st.markdown(f"<div style='line-height: 48px; color: #555; font-weight: 500;'>{period}</div>", unsafe_allow_html=True)
+                    with c2:
+                        if st.button(cell_label if cell_label else "➕ 点击选课", key=button_key, use_container_width=True):
+                            if cell_cid == current_cid:
+                                if cell_key in user_schedule:
+                                    del user_schedule[cell_key]
+                            else:
+                                user_schedule[cell_key] = (current_cid, current_hex, current_label)
+                            st.session_state.user_schedule = user_schedule
+                            st.rerun()
+
+    else:
+        # ======= 原有网格模式 =======
+        header_cols = st.columns([1.5] + [1]*len(WEEKDAYS))
+        header_cols[0].markdown(f'<div class="schedule-time schedule-header">时间段</div>', unsafe_allow_html=True)
+        for d, day in enumerate(WEEKDAYS):
+            style_ext = "border-right: 1px solid #eaebec !important;" if d == len(WEEKDAYS)-1 else ""
+            header_cols[d+1].markdown(f'<div class="schedule-header" style="{style_ext}">{day}</div>', unsafe_allow_html=True)
+
+        total_periods = len(PERIODS)
+        for row_idx, period in enumerate(PERIODS):
+            is_last_row = row_idx == total_periods - 1
+            row_cols = st.columns([1.5] + [1]*len(WEEKDAYS))
+            
+            time_style = "border-bottom: 1px solid #eaebec !important;" if is_last_row else ""
+            row_cols[0].markdown(f'<div class="schedule-time" style="{time_style}">{period}</div>', unsafe_allow_html=True)
+            
+            for d, day in enumerate(WEEKDAYS):
+                cell_key = f"{day}-{period}"
+                button_key = f"btn_{cell_key}"
+                is_last_col = d == len(WEEKDAYS)-1
+                
+                cell_data = user_schedule.get(cell_key, None)
+                cell_cid, cell_hex, cell_label = (None, "transparent", "") if cell_data is None else cell_data
+
+                btn_border_right = "border-right: 1px solid #eaebec !important;" if is_last_col else ""
+                btn_border_bottom = "border-bottom: 1px solid #eaebec !important;" if is_last_row else ""
+                
+                if cell_hex != "transparent":
+                    h_c = cell_hex.lstrip('#')
+                    r, g, b = tuple(int(h_c[i:i+2], 16) for i in (0, 2, 4))
+                    cell_text_color = "white" if (r*0.299 + g*0.587 + b*0.114) < 186 else "#333333"
+                else:
+                    cell_text_color = "transparent"
+
+                st.markdown(f"""
+                <style>
+                #{button_key} > button {{
+                    background-color: {cell_hex} !important;
+                    color: {cell_text_color} !important;
+                    {btn_border_right}
+                    {btn_border_bottom}
+                }}
+                </style>
+                """, unsafe_allow_html=True)
+
+                with row_cols[d+1]:
+                    if st.button(cell_label if cell_label else "空", key=button_key, use_container_width=True):
+                        if cell_cid == current_cid:
+                            if cell_key in user_schedule:
+                                del user_schedule[cell_key]
+                        else:
+                            user_schedule[cell_key] = (current_cid, current_hex, current_label)
+                        st.session_state.user_schedule = user_schedule
+                        st.rerun()
 
     st.markdown('<div class="module-spacer"></div>', unsafe_allow_html=True)
 
