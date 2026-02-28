@@ -259,15 +259,69 @@ else:
         color: #777777;
     }
 
-    /* === 移动端响应式核心 (方案一) === */
+    /* === 移动端响应式核心 (深度定制版) === */
     @media (max-width: 768px) {
-        /* 1. 阻止 Streamlit 原生列堆叠，强制维持网格结构 */
-        [data-testid="stHorizontalBlock"]:has(.schedule-time),
-        [data-testid="stHorizontalBlock"]:has(.schedule-header) {
+        /* 1. 越权解锁滚动限制：强制主容器允许横向展开并开启滚动 */
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] .schedule-time) {
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            display: block !important; /* 必须打破默认的 flex 限制，否则子元素无法撑开 */
+            width: 100vw !important;
+            /* 稍微外扩抵消 Streamlit 的默认页面边距，最大化利用屏幕 */
+            margin-left: -1rem; 
+            padding-left: 1rem;
+            padding-bottom: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* 2. 强制每行绝对不换行，并允许总宽度突破物理屏幕 */
+        div[data-testid="stHorizontalBlock"]:has(.schedule-time),
+        div[data-testid="stHorizontalBlock"]:has(.schedule-header) {
+            display: flex !important;
             flex-wrap: nowrap !important;
-            min-width: 800px !important; /* 强制产生溢出以触发滚动 */
+            width: max-content !important; 
+            min-width: 100% !important;
+        }
+
+        /* 3. 大幅缩减工作日列宽 (强制锁定在 48px) */
+        div[data-testid="stHorizontalBlock"]:has(.schedule-header) > div[data-testid="column"]:not(:first-child),
+        div[data-testid="stHorizontalBlock"]:has(.schedule-time) > div[data-testid="column"]:not(:first-child) {
+            min-width: 48px !important;
+            width: 48px !important;
+            flex: 0 0 48px !important; /* 拒绝容器自身的弹性缩放 */
+        }
+
+        /* 4. 独立控制并冻结首列（时间轴） */
+        div[data-testid="stHorizontalBlock"]:has(.schedule-header) > div[data-testid="column"]:first-child,
+        div[data-testid="stHorizontalBlock"]:has(.schedule-time) > div[data-testid="column"]:first-child {
+            min-width: 75px !important;
+            width: 75px !important;
+            flex: 0 0 75px !important;
+            /* 核心冻结逻辑 */
+            position: sticky !important;
+            left: 0 !important;
+            z-index: 99 !important;
+            /* 必须填充实色底色，否则右侧内容滑过时会发生文字重叠 */
+            background-color: #ffffff !important; 
+            box-shadow: 4px 0px 6px -2px rgba(0,0,0,0.1) !important;
         }
         
+        /* 5. 极端空间下的 UI 妥协：压缩文字与内边距 */
+        .stButton > button {
+            padding: 0 !important;
+            font-size: 0.7rem !important;
+            letter-spacing: -0.5px !important;
+            text-overflow: clip !important; /* 空间极小，取消省略号，直接截断 */
+        }
+        .schedule-header, .schedule-time {
+            font-size: 0.7rem !important;
+            padding: 0 !important;
+        }
+        .schedule-time {
+            text-align: center !important; 
+            padding-right: 0 !important;
+        }
+    }
         /* 2. 识别课表的父级容器，并开启原生横向滚动 */
         [data-testid="stVerticalBlock"]:has(> [data-testid="stHorizontalBlock"] .schedule-time) {
             overflow-x: auto !important;
