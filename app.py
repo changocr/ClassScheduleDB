@@ -77,12 +77,12 @@ def load_user_init_data(user_name, df_colors, df_schedule):
     return my_colors, user_schedule, color_id_map
 
 # ================= 页面基础配置 =================
-st.set_page_config(page_title="即点即选课表系统", layout="wide")
+st.set_page_config(page_title="课表系统", layout="wide")
 
 # 1. 登录界面
 if "user_name" not in st.session_state:
-    st.title("👋 欢迎使用即点即选课表系统")
-    input_name = st.text_input("请输入你的名字（管理员请输入 admin）", max_chars=20)
+    st.title("👋 欢迎使用课表系统")
+    input_name = st.text_input("请输入你的名字", max_chars=20)
     if st.button("进入系统", type="primary", use_container_width=True):
         if input_name.strip():
             st.session_state.user_name = input_name.strip()
@@ -218,9 +218,9 @@ else:
     
     with st.expander("📖 使用说明", expanded=True):
         st.markdown("""
-        1. 先在下方「当前选中颜色」中，点击「选中」按钮选择要使用的周数颜色
-        2. 直接点击课表格子，**立刻填入当前选中的颜色**，无任何弹窗和等待
-        3. 再次点击同一个格子，**立刻清空**，恢复默认状态
+        1. 每种颜色代表一组课程起止周，首先根据课表创建所有课程的起止周组合，起止周相同的课创建一次即可
+        2. 直接点击课表格子，填入当前选中的颜色
+        3. 再次点击同一个格子，清空
         4. 所有操作均为本地编辑，全部选完后，点击底部「✅ 提交所有修改到服务器」完成同步
         """)
 
